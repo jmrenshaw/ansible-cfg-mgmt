@@ -1,0 +1,73 @@
+---
+- name: Collect configuration information for Linux hosts
+  hosts: linux
+  gather_facts: no
+
+  tasks:
+    - name: Copy the files to local host
+      fetch:
+        src: "{{ item }}"
+        dest: "~/configuration_audits/{{ dir }}"
+      loop: "{{ files }}"
+
+    - name: Find files based on wildcards
+      find:
+        paths: "{{ item.path }}"
+        patterns: "{{ item.pattern }}"
+        recurse: "{{ item.recurse }}"
+        hidden: yes
+      register: my_find
+      loop: "{{ wildcards }}"
+
+#    - debug:
+#        var: my_find
+
+    - name: Copy wildcard files to local host
+      include_tasks: inner.yml
+      loop: "{{ my_find.results }}"
+      loop_control:
+        loop_var: outer_item
+
+        
+- name: "Git: Push configuration files to git repo"
+  hosts: localhost
+  connection: local
+  gather_facts: yes # Required to get time for timestamp
+
+  tasks:
+    - name: Add any new files to commit
+      shell: "git add ."
+      args:
+        chdir: "~/configuration_audits/{{ dir }}"
+      register: gitadd
+    - debug:
+        var: gitadd.cmd
+
+    - name: Check repo is up to date
+      git:
+        repo: "{{ gitpath }}"
+        dest: "~/configuration_audits/{{ dir }}"
+        update: yes
+        version: master
+      register: git
+      ignore_errors: True
+    - debug:
+        var: git
+
+    - name: Commit changes
+      shell: git commit -m "{{ ansible_date_time.date }}:{{ ansible_date_time.time }}"
+      args:
+        chdir: "~/configuration_audits/{{ dir }}"
+      register: gitcommit
+      when: git.msg is defined
+    - debug:
+        var: gitcommit.stdout
+
+    - name: Push commit to remote repository
+      shell: git push origin master
+      args:
+        chdir: "~/configuration_audits/{{ dir }}"
+      register: gitpush
+      when: git.msg is defined
+    - debug:
+        var: gitpush

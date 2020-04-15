@@ -1,0 +1,93 @@
+---
+
+- name: Capture installed package information for Linux hosts
+  hosts: linux
+
+  tasks:
+  - name: Get the package facts from hosts
+    package_facts:
+      manager: auto
+    register: reg_package_facts
+
+#  - name: Display output
+#    debug:
+#      var: ansible_facts.packages
+
+
+#  - name: Save the package list to a file for each host
+
+  - local_action:
+      file path="~/package_facts/{{ dir }}" state=directory
+  - local_action:
+      copy content="{{ ansible_facts.packages }}" dest="~/package_facts/{{ dir }}/{{ inventory_hostname }}.json"
+  - local_action: shell python json-to-csv.py ~/package_facts/{{ dir }}/{{ inventory_hostname }}.json ~/package_facts/{{ dir }}/{{ inventory_hostname }}.csv linux
+#    when: reg_package_facts.changed
+
+- name: Check that the correct versions of software have been installed against the baseline
+  hosts: <group names here>
+  gather_facts: no
+  
+  tasks:
+#  - name: "Check the vars!"
+#    debug:
+#      var: "{{ packages }}"
+
+  - name: Run yum in check mode
+    check_mode: yes
+    ignore_errors: True
+    yum:
+      name: "{{ item }}"
+      state: present
+    loop: "{{ check_packages }}"
+    when: check_packages is defined
+
+- name: Capture installed package information for Windows hosts
+  hosts: windows
+
+  tasks:
+#  - name: Ping the windows hosts
+#    win_ping:
+
+  - name: Run the powershell command to get installed applications
+#    win_shell: Get-WmiObject -Class Win32_Product | ConvertTo-Json
+    win_shell: Get-ItemProperty HKLM:\Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\* | Select-Object PSPath, DisplayName, DisplayVersion | ConvertTo-Csv
+    register: Wow6432Node_packages
+    
+  - name: Run the powershell command to get more installed applications
+    win_shell: Get-ItemProperty HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\* | Select-Object PSPath, DisplayName, DisplayVersion | ConvertTo-Csv
+    register: Microsoft_packages
+
+#  - name: Display output
+#    debug:
+#      var: win_packages
+
+  - local_action:
+      file path="~/package_facts/{{ dir }}" state=directory
+  - local_action:
+      module: copy
+      content: |
+        "{{ Microsoft_packages.stdout }}
+        {{ Wow6432Node_packages.stdout }}"
+      dest: "~/package_facts/{{ dir }}/{{ inventory_hostname }}.csv"
+
+- name: Check that the correct versions of software have been installed against the baseline
+  hosts: <group names here>
+
+  tasks:
+  - name: Check Windows Packages 
+    local_action:
+      module: shell
+      cmd: python check-windows-software.py ~/package_facts/{{ dir }}/{{ inventory_hostname }}.csv "{{ item['name'] }}" "{{ item['version'] }}"
+    loop: "{{ check_win_software }}"
+    when: check_win_software is defined
+    ignore_errors: True
+    changed_when: False
+
+  - name: Check Windows Roles and Features
+    check_mode: yes
+    ignore_errors: True
+    win_feature:
+      name: "{{ item }}"
+      state: present
+    loop: "{{ check_win_features }}"
+    when: check_win_features is defined 

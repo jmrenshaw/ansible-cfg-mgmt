@@ -1,0 +1,4 @@
+---
+check_win_software:
+  - name: "<software name>"
+    version: "<version>"

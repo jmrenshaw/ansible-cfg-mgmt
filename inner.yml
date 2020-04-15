@@ -1,0 +1,8 @@
+---
+- fetch:
+    src: "{{ item.path }}"
+    dest: "~/configuration_audits/{{ dir }}"
+  loop: "{{ outer_item.files }}"
+
+#- debug:
+#    var: "{{ item }}"

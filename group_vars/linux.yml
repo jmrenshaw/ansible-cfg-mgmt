@@ -1,0 +1,27 @@
+---
+files:
+  - /etc/hosts
+  - /etc/selinux/config
+  - /etc/ntp.conf
+  - /etc/ntp/keys
+  - /etc/sysconfig/clock
+  - /etc/group
+  - /etc/crontab
+  - /etc/modprobe.d/bonding.conf
+  - /etc/rc.local
+  
+wildcards:
+  - path: "/etc/sysconfig/network-scripts/"
+    pattern: "ifcfg-*"
+    recurse: no
+  - path: ["/home/","/root/"]
+    pattern: ".bashrc"
+    recurse: yes
+  - path: ["/home/","/root/"]
+    pattern: ".bash_history"
+    recurse: yes
+    
+check_packages:
+  - ntp-4.2.6p5
+  - ntpdate-4.2.6p5
+  - libedit-2.11
